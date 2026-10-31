@@ -1,0 +1,22 @@
+pkgbase = nimbus-drive
+	pkgdesc = Unofficial Google Drive client: files on demand, Dolphin status emblems, offline folders (rclone)
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/mmukhanov/nimbus-drive
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	makedepends = cmake
+	makedepends = extra-cmake-modules
+	depends = rclone
+	depends = fuse3
+	depends = python
+	depends = python-pyqt6
+	depends = python-dbus
+	depends = kio
+	depends = qt6-base
+	optdepends = dolphin: file emblems and context menu
+	source = nimbus-drive-0.1.0.tar.gz::https://github.com/mmukhanov/nimbus-drive/archive/refs/tags/v0.1.0.tar.gz
+	sha256sums = 9771913e4d379e417e88585a0476245e419c2b24e4d010577aebdf7edf69fef0
+
+pkgname = nimbus-drive

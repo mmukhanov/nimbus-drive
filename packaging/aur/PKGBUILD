@@ -1,0 +1,41 @@
+# Maintainer: Mikhail Mukhanov <504087+mmukhanov@users.noreply.github.com>
+pkgname=nimbus-drive
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Unofficial Google Drive client: files on demand, Dolphin status emblems, offline folders (rclone)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/mmukhanov/nimbus-drive"
+license=('MIT')
+depends=('rclone' 'fuse3' 'python' 'python-pyqt6' 'python-dbus' 'kio' 'qt6-base')
+makedepends=('cmake' 'extra-cmake-modules')
+optdepends=('dolphin: file emblems and context menu')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('9771913e4d379e417e88585a0476245e419c2b24e4d010577aebdf7edf69fef0')
+
+build() {
+  cmake -S "$pkgname-$pkgver/plugins/dolphin" -B build \
+    -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=None
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  cd "$pkgname-$pkgver"
+
+  install -d "$pkgdir/usr/lib/nimbus-drive"
+  cp -r nimbus_drive "$pkgdir/usr/lib/nimbus-drive/"
+  python3 -m compileall -q -d /usr/lib/nimbus-drive "$pkgdir/usr/lib/nimbus-drive"
+  install -Dm755 /dev/stdin "$pkgdir/usr/bin/nimbus-drive" <<'LAUNCHER'
+#!/bin/sh
+exec env PYTHONPATH=/usr/lib/nimbus-drive python3 -m nimbus_drive "$@"
+LAUNCHER
+
+  for f in data/icons/hicolor/scalable/*/*.svg; do
+    install -Dm644 "$f" "$pkgdir/usr/share/icons/${f#data/icons/}"
+  done
+  sed 's|@BINDIR@|/usr/bin|' data/io.github.nimbusdrive.desktop \
+    | install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/io.github.nimbusdrive.desktop"
+  sed 's|@BINDIR@|/usr/bin|' data/nimbus-drive.service \
+    | install -Dm644 /dev/stdin "$pkgdir/usr/lib/systemd/user/nimbus-drive.service"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
