@@ -43,13 +43,16 @@ The window opens on the *Account* tab the first time. Restart Dolphin to see the
 
 ## Your own Google client ID (needed in 2026)
 
-To sign in to Google an app needs a client ID. rclone's shared one is being retired by Google during 2026; connections that still use it stop working at that point. Create your own once — free, about ten minutes — following [rclone's guide](https://rclone.org/drive/#making-your-own-client-id), then use *Account → Reconnect with your own client ID*:
+Every app that signs in to Google needs an OAuth client ID. rclone's shared one is being retired by Google during 2026, and connections still using it stop working then — so each user creates their own, once. It is free, but **plan for 30–60 minutes the first time**: Google's console is fiddly.
 
-1. In Google Cloud Console create a project and enable the Google Drive API.
-2. Configure the OAuth consent screen as *External*, add the `.../auth/drive` scope and press **Publish app**. An app left in *Testing* gets its sign-in revoked by Google every 7 days.
-3. Create an OAuth client of type *Desktop app* and paste its ID and secret into Nimbus Drive.
+You choose between two modes:
 
-Google shows an "unverified app" warning when you sign in — expected for your own app; choose *Advanced → Go to …*. Verification is not needed for personal use.
+- **Testing** — quick to set up, but Google drops the sign-in every **7 days**; reconnecting is one click in *Account → Reconnect*.
+- **Published** — the sign-in does not expire, but Google requires a home page and a privacy policy on a domain you own (free with GitHub Pages; `github.com` itself is not accepted).
+
+Google Workspace accounts can choose *Internal* and skip all of that.
+
+**Step-by-step guide: [docs/google-client-id.md](docs/google-client-id.md).** Bonus: with your own client ID Google stops throttling you — listing a big folder went from ~50 s to ~1 s in our tests.
 
 ## How it works
 

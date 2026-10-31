@@ -26,7 +26,7 @@ from .client import DaemonClient
 
 AUTOSTART_FILE = Path(os.path.expanduser(os.environ.get("XDG_CONFIG_HOME", "~/.config"))) \
     / "autostart" / "nimbus-drive-tray.desktop"
-CLIENT_ID_GUIDE = "https://rclone.org/drive/#making-your-own-client-id"
+CLIENT_ID_GUIDE = HOMEPAGE + "/blob/main/docs/google-client-id.md"
 
 
 def icon(name: str) -> QIcon:
@@ -444,17 +444,18 @@ class ConnectDialog(QDialog):
         self.client_secret.setEchoMode(QLineEdit.EchoMode.Password)
         guide = QLabel(
             "To sign in to Google, an app needs a client ID. rclone's shared one is being "
-            "retired by Google during 2026, so create your own — free, about ten minutes, "
-            "done once:<ol>"
-            "<li>In Google Cloud Console create a project and enable the Google Drive API.</li>"
-            "<li>Set up the OAuth consent screen as <i>External</i>, add the "
-            "<code>.../auth/drive</code> scope, then press <b>Publish app</b>. "
-            "Leaving it in <i>Testing</i> makes Google log you out every 7 days.</li>"
-            "<li>Create an OAuth client of type <i>Desktop app</i> and paste its ID and "
-            "secret below.</li></ol>"
-            "Google will warn that the app is unverified — that is expected for your own "
-            "app: choose <i>Advanced → Go to …</i>. "
-            f"<a href='{CLIENT_ID_GUIDE}'>Step-by-step guide</a>.")
+            "retired by Google during 2026, so create your own once. It is free but takes "
+            "30–60 minutes the first time — follow the "
+            f"<a href='{CLIENT_ID_GUIDE}'><b>step-by-step guide</b></a>."
+            "<p>In short: in Google Cloud Console enable the Google Drive API, set up the "
+            "OAuth consent screen (<i>External</i>), add the <code>.../auth/drive</code> "
+            "scope and yourself as a test user, create a <i>Desktop app</i> client and paste "
+            "its ID and secret below.</p>"
+            "<p>While the app is in <i>Testing</i>, Google drops the sign-in every 7 days and "
+            "you reconnect here with one click. Publishing it removes that but needs a home "
+            "page and privacy policy on a domain you own — the guide shows a free way.</p>"
+            "<p>Google warns that the app is unverified: expected for your own app, choose "
+            "<i>Advanced → Go to …</i>.</p>")
         guide.setWordWrap(True)
         guide.setOpenExternalLinks(True)
         form = QFormLayout()
@@ -564,8 +565,8 @@ class AccountTab(QWidget):
         self.warning.setText(
             "⚠ This connection signs in with rclone's shared client ID, which Google is "
             "retiring during 2026. Once it is retired, Google Drive stops connecting. "
-            "Reconnect with your own client ID (about ten minutes, done once) and it keeps "
-            "working."
+            "Reconnect with your own client ID (free, done once; the guide takes 30–60 "
+            "minutes the first time) and it keeps working."
             if shared else "")
         self.reauth_btn.setVisible(bool(name))
 
