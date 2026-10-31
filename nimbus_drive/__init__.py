@@ -1,6 +1,7 @@
 """Nimbus Drive: a Google Drive desktop client for Linux built on rclone."""
 
 __version__ = "0.1.0"
+HOMEPAGE = "https://github.com/mmukhanov/nimbus-drive"
 
 APP_ID = "nimbus-drive"
 DBUS_NAME = "io.github.nimbusdrive"

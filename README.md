@@ -27,6 +27,7 @@ Requirements: rclone **1.66 or newer** (distribution packages are often older â€
 Debian/Ubuntu:
 
 ```bash
+git clone https://github.com/mmukhanov/nimbus-drive.git && cd nimbus-drive
 sudo apt install fuse3 python3-pyqt6 python3-dbus python3-dbus.mainloop.pyqt6 \
   cmake g++ extra-cmake-modules libkf6kio-dev qt6-base-dev
 ./install.sh

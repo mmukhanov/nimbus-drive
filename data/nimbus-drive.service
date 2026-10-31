@@ -1,5 +1,6 @@
 [Unit]
 Description=Nimbus Drive (Google Drive via rclone)
+Documentation=https://github.com/mmukhanov/nimbus-drive
 Wants=network-online.target
 After=network-online.target graphical-session-pre.target
 

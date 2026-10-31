@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
-from . import __version__
+from . import HOMEPAGE, __version__
 from . import config as C
 from .client import DaemonClient
 
@@ -594,7 +594,10 @@ class SettingsTab(QWidget):
         lay.addWidget(self.notify)
         lay.addWidget(self.autostart)
         lay.addStretch()
-        lay.addWidget(QLabel(f"Nimbus Drive {__version__} на базе rclone"))
+        about = QLabel(f"Nimbus Drive {__version__} на базе rclone · "
+                       f"<a href='{HOMEPAGE}'>GitHub</a>")
+        about.setOpenExternalLinks(True)
+        lay.addWidget(about)
         lay.addWidget(save, alignment=Qt.AlignmentFlag.AlignRight)
 
     def _with_browse(self, edit: QLineEdit) -> QWidget:
