@@ -233,6 +233,9 @@ class Daemon(QObject):
         self.downloads: dict[str, dict] = {}   # rel -> {"pct", "size", "bytes"}
         self.uploads: dict[str, dict] = {}
         self.requested: dict[str, float] = {}  # rel -> time, downloads we started
+        self.completed_seen: set[tuple[str, str]] | None = None  # (name, completed_at)
+        self.cache_shape: tuple[int, int] | None = None  # (files, bytes) in the VFS cache
+        self.polls = 0
         self.lock = threading.Lock()
         self.pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="download")
         self.bus = dbus.SessionBus()
@@ -327,13 +330,46 @@ class Daemon(QObject):
             for rel in self.requested:
                 downloads.setdefault(rel, {"pct": 0, "size": 0, "bytes": 0, "speed": 0})
         touched = (set(downloads) ^ set(self.downloads)) | (set(uploads) ^ set(self.uploads))
+        # Small files download between two polls and never show up as "transferring";
+        # the completed list still has them.
+        finished = self._newly_completed()
+        touched |= finished
         progress = set(downloads) | set(uploads)
         self.downloads, self.uploads = downloads, uploads
+        mp = self.cfg.mount_path
         if touched:
-            mp = self.cfg.mount_path
             self.changed([str(mp / rel) for rel in touched])
+        if finished:
+            # rclone saves the cache metadata a moment after the transfer ends.
+            QTimer.singleShot(1500, lambda: self.changed([str(mp / rel) for rel in finished]))
+        self.polls += 1
+        if self.polls % 10 == 0:
+            self._check_cache_shape()
         if touched or progress:
             self.summary_changed()
+
+    def _newly_completed(self) -> set[str]:
+        try:
+            done = self.rc.call("core/transferred").get("transferred") or []
+        except RcError:
+            return set()
+        keys = {(t.get("name", ""), t.get("completed_at", "")) for t in done if t.get("name")}
+        # The first look only records what finished before we started watching.
+        new = set() if self.completed_seen is None else keys - self.completed_seen
+        self.completed_seen = keys  # rclone keeps only the most recent ones anyway
+        return {name for name, _ in new}
+
+    def _check_cache_shape(self) -> None:
+        """rclone evicts old files from its cache by itself (size and age limits); when the
+        cache shrinks, let file managers re-check everything they show."""
+        try:
+            disk = self.rc.call("vfs/stats", fs=f"{self.cfg['remote']}:").get("diskCache", {})
+        except RcError:
+            return
+        shape = (disk.get("files", 0), disk.get("bytesUsed", 0))
+        if self.cache_shape is not None and shape[0] < self.cache_shape[0]:
+            self.changed([str(self.cfg.mount_path) + "/"])
+        self.cache_shape = shape
 
     # ---- path helpers ----
 
