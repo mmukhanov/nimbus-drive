@@ -31,9 +31,9 @@ def rclone_version() -> tuple[int, int]:
 
 
 def human_size(n: float) -> str:
-    for unit in ("Б", "КБ", "МБ", "ГБ"):
-        if n < 1024 or unit == "ГБ":
-            return f"{n:.0f} {unit}" if unit == "Б" else f"{n:.1f} {unit}"
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
         n /= 1024
 
 
@@ -56,20 +56,20 @@ class Mount(QObject):
         mp = cfg.mount_path
         self._cleanup_stale(mp)
         if os.path.ismount(mp):
-            self.error = f"{mp} уже смонтирована другой программой — отключите её."
-            self.d.notify("Google Drive не подключён", self.error)
+            self.error = f"{mp} is already mounted by another program — unmount it first."
+            self.d.notify("Google Drive is not connected", self.error)
             return
         try:
             mp.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            self.error = f"Не удалось создать {mp}: {e}"
+            self.error = f"Cannot create {mp}: {e}"
             return
         if any(mp.iterdir()):
-            self.error = f"Папка {mp} не пуста — выберите пустую папку для Google Drive."
-            self.d.notify("Google Drive не подключён", self.error)
+            self.error = f"{mp} is not empty — choose an empty folder for Google Drive."
+            self.d.notify("Google Drive is not connected", self.error)
             return
         if len(str(C.RC_SOCKET).encode()) >= 104:  # sun_path limit
-            self.error = f"Слишком длинный путь к сокету: {C.RC_SOCKET}"
+            self.error = f"Socket path is too long: {C.RC_SOCKET}"
             return
         C.ensure_private_dir(C.RUNTIME_DIR)
         C.STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -114,7 +114,7 @@ class Mount(QObject):
         except (RcError, KeyError):
             pass
         if time.time() - since > 120:
-            self.error = "rclone не ответил за 2 минуты"
+            self.error = "rclone did not respond within 2 minutes"
             self.stop()
             return
         QTimer.singleShot(300, lambda: self._wait_ready(since))
@@ -133,11 +133,11 @@ class Mount(QObject):
         except OSError:
             log = []
         errors = [l.split(":", 3)[-1].strip() for l in log if "ERROR" in l or "CRITICAL" in l]
-        self.error = (errors or out.splitlines() or [f"rclone завершился с кодом {code}"])[-1][:300]
+        self.error = (errors or out.splitlines() or [f"rclone exited with code {code}"])[-1][:300]
         self.restarts += 1
         delay = min(300, 5 * 2 ** min(self.restarts, 6))
         if was_ready or self.restarts == 1:
-            self.d.notify("Google Drive отключился", f"{self.error}\nПереподключусь через {delay} с.")
+            self.d.notify("Google Drive disconnected", f"{self.error}\nReconnecting in {delay} s.")
         QTimer.singleShot(delay * 1000, self.start)
 
     def stop(self) -> None:
@@ -400,14 +400,14 @@ class Daemon(QObject):
 
     def download(self, paths: list[Path]) -> str:
         if not self.mount.ready:
-            return "Google Drive не подключён"
+            return "Google Drive is not connected"
         files = 0
         for p in paths:
             if self.mount_rel(p) is None:
                 continue
             files += 1
             self.pool.submit(self._download_tree, p)
-        return f"Скачиваю: {files}" if files else "Эти файлы не из Google Drive"
+        return f"Downloading: {files}" if files else "These files are not in Google Drive"
 
     def _download_tree(self, path: Path) -> None:
         if path.is_dir():
@@ -429,14 +429,14 @@ class Daemon(QObject):
                 while f.read(1 << 20):
                     pass
         except OSError as e:
-            QTimer.singleShot(0, lambda: self.notify("Не удалось скачать", f"{path.name}: {e}"))
+            QTimer.singleShot(0, lambda: self.notify("Download failed", f"{path.name}: {e}"))
         finally:
             with self.lock:
                 self.requested.pop(rel, None)
 
     def free_space(self, paths: list[Path]) -> str:
         if not self.mount.ready or self.cache is None:
-            return "Google Drive не подключён"
+            return "Google Drive is not connected"
         open_files = self._open_files()
         freed, skipped, changed = 0, 0, []
         for p in paths:
@@ -452,9 +452,9 @@ class Daemon(QObject):
                 changed.append(str(self.cfg.mount_path / item))
         self.changed(changed)
         self.summary_changed()
-        msg = f"Освобождено {human_size(freed)}"
+        msg = f"Freed {human_size(freed)}"
         if skipped:
-            msg += f"; пропущено файлов: {skipped} (открыты или ещё не загружены в облако)"
+            msg += f"; skipped {skipped} file(s) that are open or not uploaded yet"
         return msg
 
     def _open_files(self) -> set[str]:
@@ -487,7 +487,7 @@ class Daemon(QObject):
             if rel:
                 folders.append(rel)
         if not folders:
-            return "Выберите папки из Google Drive"
+            return "Choose folders from Google Drive"
         current = self.cfg.offline_folders()
         msgs = []
         if enabled:
@@ -499,7 +499,7 @@ class Daemon(QObject):
                     current.remove(sub)
                     self.mirror.remove(sub, trash_local=False)
                 current.append(f)
-                msgs.append(f"«{f}» будет доступна офлайн в {self.cfg.mirror_path / f}")
+                msgs.append(f"\"{f}\" will be available offline in {self.cfg.mirror_path / f}")
         else:
             for f in folders:
                 if f in current:
@@ -513,12 +513,12 @@ class Daemon(QObject):
                 if f in current:
                     self.mirror.sync(f)
         self.summary_changed()
-        return "\n".join(msgs) or "Ничего не изменилось"
+        return "\n".join(msgs) or "Nothing changed"
 
 
 def main() -> int:
     if rclone_version() < MIN_RCLONE:
-        print(f"Нужен rclone {MIN_RCLONE[0]}.{MIN_RCLONE[1]} или новее: https://rclone.org/install/",
+        print(f"rclone {MIN_RCLONE[0]}.{MIN_RCLONE[1]} or newer is required: https://rclone.org/install/",
               file=sys.stderr)
         return 1
     app = QCoreApplication(sys.argv)
@@ -527,7 +527,7 @@ def main() -> int:
     try:
         name = dbus.service.BusName(DBUS_NAME, dbus.SessionBus(), do_not_queue=True)
     except dbus.exceptions.NameExistsException:
-        print("Nimbus Drive уже запущен", file=sys.stderr)
+        print("Nimbus Drive is already running", file=sys.stderr)
         return 1
     daemon = Daemon()
     signal.signal(signal.SIGTERM, lambda *_: app.quit())

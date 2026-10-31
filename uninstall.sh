@@ -13,15 +13,15 @@ pkill -f 'nimbus_drive tray' 2>/dev/null || true
 
 rm -f "$CONFDIR/systemd/user/nimbus-drive.service" "$CONFDIR/autostart/nimbus-drive-tray.desktop"
 systemctl --user daemon-reload
-rm -f "$PREFIX/bin/nimbus-drive" "$DATADIR/applications/nimbus-drive.desktop"
+rm -f "$PREFIX/bin/nimbus-drive" "$DATADIR/applications/io.github.nimbusdrive.desktop" "$DATADIR/applications/nimbus-drive.desktop"
 rm -f "$DATADIR"/icons/hicolor/scalable/apps/io.github.nimbusdrive.svg
-rm -f "$DATADIR"/icons/hicolor/scalable/emblems/nimbusdrive-*.svg
+rm -f "$DATADIR"/icons/hicolor/scalable/emblems/nimbusdrive-*.svg "$DATADIR"/icons/hicolor/scalable/status/nimbusdrive-*.svg
 rm -rf "$PREFIX/share/nimbus-drive"
 
 PLUGINDIR=$(qtpaths6 --plugin-dir 2>/dev/null || qmake6 -query QT_INSTALL_PLUGINS 2>/dev/null || true)
 if [ -n "$PLUGINDIR" ] && { [ -e "$PLUGINDIR/kf6/overlayicon/nimbusoverlay.so" ] || [ -e "$PLUGINDIR/kf6/kfileitemaction/nimbusactions.so" ]; }; then
-  echo "Удаляю плагин Dolphin (нужен пароль администратора)"
+  echo "Removing the Dolphin plugin (needs your admin password)"
   $SUDO rm -f "$PLUGINDIR/kf6/overlayicon/nimbusoverlay.so" "$PLUGINDIR/kf6/kfileitemaction/nimbusactions.so"
 fi
 
-echo "Nimbus Drive удалён. Настройки остались в $CONFDIR/nimbus-drive, кэш — в ${XDG_CACHE_HOME:-$HOME/.cache}/nimbus-drive."
+echo "Nimbus Drive removed. Settings remain in $CONFDIR/nimbus-drive, the cache in ${XDG_CACHE_HOME:-$HOME/.cache}/nimbus-drive."

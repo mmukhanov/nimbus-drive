@@ -12,18 +12,18 @@ UNITDIR=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
 SUDO=${SUDO:-sudo}
 
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
-die() { printf 'Ошибка: %s\n' "$*" >&2; exit 1; }
+die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 
-say "Проверяю зависимости"
-command -v rclone >/dev/null || die "нужен rclone 1.66+ — https://rclone.org/install/"
+say "Checking dependencies"
+command -v rclone >/dev/null || die "rclone 1.66+ is required — https://rclone.org/install/"
 ver=$(rclone version | sed -n 's/^rclone v\([0-9]*\)\.\([0-9]*\).*/\1 \2/p')
 set -- $ver
-[ "${1:-0}" -gt 1 ] || [ "${2:-0}" -ge 66 ] || die "rclone $1.$2 слишком старый, нужен 1.66+ (https://rclone.org/install/)"
-command -v fusermount3 >/dev/null || die "нужен fuse3 (apt install fuse3)"
+[ "${1:-0}" -gt 1 ] || [ "${2:-0}" -ge 66 ] || die "rclone $1.$2 is too old, 1.66+ is required (https://rclone.org/install/)"
+command -v fusermount3 >/dev/null || die "fuse3 is required (apt install fuse3)"
 python3 -c 'import PyQt6.QtWidgets, dbus, dbus.mainloop.pyqt6' 2>/dev/null \
-  || die "нужны PyQt6 и dbus-python (apt install python3-pyqt6 python3-dbus python3-dbus.mainloop.pyqt6)"
+  || die "PyQt6 and dbus-python are required (apt install python3-pyqt6 python3-dbus python3-dbus.mainloop.pyqt6)"
 
-say "Устанавливаю программу в $LIBDIR"
+say "Installing the app to $LIBDIR"
 mkdir -p "$LIBDIR" "$BINDIR"
 rm -rf "$LIBDIR/nimbus_drive"
 cp -r "$SRC/nimbus_drive" "$LIBDIR/"
@@ -34,33 +34,37 @@ exec /usr/bin/env PYTHONPATH="$LIBDIR" python3 -m nimbus_drive "\$@"
 EOF
 chmod +x "$BINDIR/nimbus-drive"
 
-say "Значки и ярлык"
-mkdir -p "$DATADIR/icons/hicolor/scalable/apps" "$DATADIR/icons/hicolor/scalable/emblems" "$DATADIR/applications"
-cp "$SRC"/data/icons/hicolor/scalable/apps/*.svg "$DATADIR/icons/hicolor/scalable/apps/"
-cp "$SRC"/data/icons/hicolor/scalable/emblems/*.svg "$DATADIR/icons/hicolor/scalable/emblems/"
-sed "s|@BINDIR@|$BINDIR|g" "$SRC/data/nimbus-drive.desktop" > "$DATADIR/applications/nimbus-drive.desktop"
+say "Icons and launcher"
+for sub in apps emblems status; do
+  mkdir -p "$DATADIR/icons/hicolor/scalable/$sub"
+  cp "$SRC"/data/icons/hicolor/scalable/$sub/*.svg "$DATADIR/icons/hicolor/scalable/$sub/"
+done
+mkdir -p "$DATADIR/applications"
+rm -f "$DATADIR/applications/nimbus-drive.desktop"  # name used by 0.1.0 before the rename
+sed "s|@BINDIR@|$BINDIR|g" "$SRC/data/io.github.nimbusdrive.desktop" > "$DATADIR/applications/io.github.nimbusdrive.desktop"
+command -v kbuildsycoca6 >/dev/null && kbuildsycoca6 >/dev/null 2>&1 || true
 command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -qtf "$DATADIR/icons/hicolor" 2>/dev/null || true
 
-say "Сервис systemd (пользовательский)"
+say "systemd user service"
 mkdir -p "$UNITDIR"
 sed "s|@BINDIR@|$BINDIR|g" "$SRC/data/nimbus-drive.service" > "$UNITDIR/nimbus-drive.service"
 systemctl --user daemon-reload
 
 if [ "${NO_DOLPHIN:-}" != 1 ] && command -v cmake >/dev/null && command -v dolphin >/dev/null; then
-  say "Собираю плагин для Dolphin"
+  say "Building the Dolphin plugin"
   cmake -S "$SRC/plugins/dolphin" -B "$SRC/build" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release >/dev/null
   cmake --build "$SRC/build" -j"$(nproc)" >/dev/null
-  say "Устанавливаю плагин Dolphin (нужен пароль администратора)"
+  say "Installing the Dolphin plugin (needs your admin password)"
   $SUDO cmake --install "$SRC/build" >/dev/null
 elif [ "${NO_DOLPHIN:-}" != 1 ]; then
-  echo "Плагин Dolphin пропущен: нужны cmake, g++, extra-cmake-modules, libkf6kio-dev, qt6-base-dev."
+  echo "Dolphin plugin skipped: needs cmake, g++, extra-cmake-modules, libkf6kio-dev, qt6-base-dev."
 fi
 
-say "Готово"
+say "Done"
 cat <<EOF
-Запуск:
-  systemctl --user enable --now nimbus-drive    # сервис (монтирует Google Drive)
-  nimbus-drive tray                             # значок в трее и настройки
-Первый запуск откроет окно «Аккаунт» — подключите Google Drive.
-Значки в Dolphin появятся после перезапуска Dolphin.
+Start:
+  systemctl --user enable --now nimbus-drive    # the service (mounts Google Drive)
+  nimbus-drive tray                             # tray icon and settings
+The first start opens the Account tab — connect your Google Drive there.
+Restart Dolphin to see the file emblems.
 EOF

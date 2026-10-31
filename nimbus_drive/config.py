@@ -54,7 +54,7 @@ class Config(dict):
         except FileNotFoundError:
             pass
         except (OSError, ValueError) as e:
-            raise RuntimeError(f"Не удалось прочитать {CONFIG_FILE}: {e}") from e
+            raise RuntimeError(f"Cannot read {CONFIG_FILE}: {e}") from e
         return cls(data)
 
     def save(self) -> None:
@@ -86,7 +86,7 @@ def normalize_rel(path: str) -> str:
     """Normalize a remote-relative path: no leading/trailing slashes, no '.' parts."""
     parts = [p for p in str(path).split("/") if p not in ("", ".")]
     if ".." in parts:
-        raise ValueError(f"недопустимый путь: {path}")
+        raise ValueError(f"invalid path: {path}")
     return "/".join(parts)
 
 

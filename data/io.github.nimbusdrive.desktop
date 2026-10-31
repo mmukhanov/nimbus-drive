@@ -2,9 +2,7 @@
 Type=Application
 Name=Nimbus Drive
 GenericName=Google Drive
-GenericName[ru]=Google Диск
 Comment=Google Drive for Linux: files on demand, offline folders, two-way sync
-Comment[ru]=Google Диск для Linux: файлы по запросу, офлайн-папки, двусторонняя синхронизация
 Exec=@BINDIR@/nimbus-drive tray
 Icon=io.github.nimbusdrive
 Categories=Network;FileTransfer;Qt;

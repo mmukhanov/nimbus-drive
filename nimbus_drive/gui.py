@@ -12,7 +12,7 @@ import dbus
 import dbus.service
 from dbus.mainloop.pyqt6 import DBusQtMainLoop
 from PyQt6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QAction, QDesktopServices, QIcon, QPainter, QPixmap
+from PyQt6.QtGui import QDesktopServices, QIcon
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox,
@@ -34,39 +34,41 @@ def icon(name: str) -> QIcon:
     if not themed.isNull():
         return themed
     local = Path(__file__).resolve().parent.parent / "data/icons/hicolor/scalable"
-    for sub in ("apps", "emblems"):
+    for sub in ("apps", "emblems", "status"):
         f = local / sub / f"{name}.svg"
         if f.exists():
             return QIcon(str(f))
     return QIcon()
 
 
-def badged(base: str, badge: str | None) -> QIcon:
-    pm = icon(base).pixmap(64, 64)
-    if badge:
-        p = QPainter(pm)
-        p.drawPixmap(30, 30, icon(badge).pixmap(34, 34))
-        p.end()
-    return QIcon(pm)
+# Overall state (badge from overall()) -> monochrome tray icon. Symbolic icons are
+# recoloured by Plasma to match the panel, like the other tray icons.
+TRAY_ICONS = {
+    None: "nimbusdrive-tray-ok-symbolic",
+    "nimbusdrive-syncing": "nimbusdrive-tray-sync-symbolic",
+    "nimbusdrive-pending": "nimbusdrive-tray-paused-symbolic",
+    "nimbusdrive-conflict": "nimbusdrive-tray-error-symbolic",
+    "nimbusdrive-error": "nimbusdrive-tray-error-symbolic",
+}
 
 
 def human_size(n: float) -> str:
-    for unit in ("Б", "КБ", "МБ", "ГБ", "ТБ"):
-        if n < 1024 or unit == "ТБ":
-            return f"{n:.0f} {unit}" if unit == "Б" else f"{n:.1f} {unit}"
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
         n /= 1024
 
 
 def ago(ts: float) -> str:
     if not ts:
-        return "ещё не синхронизировалась"
+        return "not synced yet"
     d = time.time() - ts
     if d < 90:
-        return "только что"
+        return "just now"
     if d < 3600:
-        return f"{int(d // 60)} мин назад"
+        return f"{int(d // 60)} min ago"
     if d < 86400:
-        return f"{int(d // 3600)} ч назад"
+        return f"{int(d // 3600)} h ago"
     return time.strftime("%d.%m %H:%M", time.localtime(ts))
 
 
@@ -119,11 +121,11 @@ class Summary(QObject):
 def overall(data: dict) -> tuple[str, str | None]:
     """Text for the tray tooltip and the badge for the tray icon."""
     if not data:
-        return "Сервис Nimbus Drive не запущен", "nimbusdrive-error"
+        return "The Nimbus Drive service is not running", "nimbusdrive-error"
     if not data["configured"]:
-        return "Аккаунт Google не подключён", "nimbusdrive-error"
+        return "No Google account connected", "nimbusdrive-error"
     if not data["mount"]["ready"]:
-        return data["mount"]["error"] or "Подключение к Google Drive…", \
+        return data["mount"]["error"] or "Connecting to Google Drive…", \
             "nimbusdrive-error" if data["mount"]["error"] else "nimbusdrive-pending"
     errors = [f for f in data["mirror"]["folders"] if f["error"]]
     downs, ups = data["downloads"], data["uploads"]
@@ -131,17 +133,18 @@ def overall(data: dict) -> tuple[str, str | None]:
     if downs or ups or running:
         parts = []
         if downs:
-            parts.append(f"скачивается {len(downs)}")
+            parts.append(f"downloading {len(downs)}")
         if ups:
-            parts.append(f"загружается {len(ups)}")
+            parts.append(f"uploading {len(ups)}")
         if running:
-            parts.append(f"синхронизация «{running}»")
-        return ", ".join(parts).capitalize(), "nimbusdrive-syncing"
+            parts.append(f"syncing \"{running}\"")
+        text = ", ".join(parts)
+        return text[0].upper() + text[1:], "nimbusdrive-syncing"
     if errors:
-        return f"Ошибка синхронизации: {errors[0]['folder']}", "nimbusdrive-conflict"
+        return f"Sync error: {errors[0]['folder']}", "nimbusdrive-conflict"
     if data["mirror"]["paused"]:
-        return "Синхронизация приостановлена", "nimbusdrive-pending"
-    return "Всё синхронизировано", None
+        return "Sync paused", "nimbusdrive-pending"
+    return "Up to date", None
 
 
 # ---------------------------------------------------------------- activity tab
@@ -160,11 +163,11 @@ class ActivityTab(QWidget):
         self.list = QListWidget()
         self.list.setSelectionMode(QListWidget.SelectionMode.NoSelection)
 
-        open_btn = QPushButton(icon("folder-cloud"), "Открыть Google Drive")
+        open_btn = QPushButton(icon("folder-cloud"), "Open Google Drive")
         open_btn.clicked.connect(lambda: self._open("path"))
-        offline_btn = QPushButton(icon("folder"), "Офлайн-папки")
+        offline_btn = QPushButton(icon("folder"), "Offline folders")
         offline_btn.clicked.connect(lambda: self._open("mirror_root"))
-        self.sync_btn = QPushButton(icon("view-refresh"), "Синхронизировать")
+        self.sync_btn = QPushButton(icon("view-refresh"), "Sync now")
         self.sync_btn.clicked.connect(self._sync)
         buttons = QHBoxLayout()
         for b in (open_btn, offline_btn, self.sync_btn):
@@ -220,11 +223,11 @@ class ActivityTab(QWidget):
         self.status.setText(text)
         self.list.clear()
         if not d:
-            self.cache.setText("Запустите: systemctl --user start nimbus-drive")
+            self.cache.setText("Start it with: systemctl --user start nimbus-drive")
             return
         c = d["cache"]
-        self.cache.setText(f"На компьютере: {human_size(c['bytes'])} (лимит {c['max']}) · "
-                           f"аккаунт {d['remote'] or '—'}")
+        self.cache.setText(f"On this computer: {human_size(c['bytes'])} (limit {c['max']}) · "
+                           f"account {d['remote'] or '—'}")
         for t in d["downloads"]:
             size = f" · {human_size(t['size'])}" if t["size"] else ""
             self._row(f"{t['name']}{size}", "nimbusdrive-downloading", t["pct"])
@@ -232,23 +235,23 @@ class ActivityTab(QWidget):
             self._row(t["name"], "nimbusdrive-uploading", t["pct"])
         for f in d["mirror"]["folders"]:
             if f["running"]:
-                self._row(f"{f['folder']} — синхронизируется…", "nimbusdrive-syncing")
+                self._row(f"{f['folder']} — syncing…", "nimbusdrive-syncing")
             elif f["error"]:
                 btn = None
                 if f["needs_force"]:
-                    btn = QPushButton("Подтвердить")
+                    btn = QPushButton("Confirm")
                     btn.clicked.connect(lambda _=False, folder=f["folder"]: self._force(folder))
                 self._row(f"{f['folder']} — {f['error']}", "nimbusdrive-error", button=btn)
             else:
-                self._row(f"{f['folder']} — офлайн, {ago(f['last_success'])}", "nimbusdrive-offline")
+                self._row(f"{f['folder']} — offline, synced {ago(f['last_success'])}", "nimbusdrive-offline")
         if self.list.count() == 0:
-            self._row("Нет активных загрузок. Офлайн-папки не выбраны.", "nimbusdrive-cached")
+            self._row("No transfers right now. No offline folders chosen.", "nimbusdrive-cached")
 
     def _force(self, folder: str):
         if QMessageBox.question(
-                self, "Подтвердить удаления",
-                f"В «{folder}» удалено много файлов с одной из сторон. Если это сделали вы, "
-                "подтвердите — удаления будут применены и к другой стороне.") \
+                self, "Confirm deletions",
+                f"Many files were deleted on one side of \"{folder}\". If you did this, "
+                "confirm and the deletions will be applied to the other side too.") \
                 == QMessageBox.StandardButton.Yes:
             self.summary.client.force_sync(folder)
 
@@ -285,18 +288,18 @@ class OfflineTab(QWidget):
         self.cfg = C.Config.load()
         self.pool = QThreadPool(self)
         info = QLabel(
-            "Отмеченные папки хранятся на компьютере целиком и синхронизируются в обе стороны — "
-            "работают без интернета. Остальные файлы видны в Google Drive и скачиваются, "
-            "когда вы их открываете.")
+            "Checked folders are kept on this computer in full and synced both ways, so they "
+            "work without internet. Everything else stays visible in Google Drive and "
+            "downloads when you open it.")
         info.setWordWrap(True)
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.itemExpanded.connect(self._expand)
         self.tree.itemChanged.connect(self._changed)
         self.where = QLabel()
-        self.apply_btn = QPushButton(icon("dialog-ok-apply"), "Применить")
+        self.apply_btn = QPushButton(icon("dialog-ok-apply"), "Apply")
         self.apply_btn.clicked.connect(self.apply)
-        reload_btn = QPushButton(icon("view-refresh"), "Обновить список")
+        reload_btn = QPushButton(icon("view-refresh"), "Refresh")
         reload_btn.clicked.connect(self.reload)
         row = QHBoxLayout()
         row.addWidget(self.where, 1)
@@ -311,13 +314,13 @@ class OfflineTab(QWidget):
     def reload(self):
         self.cfg = C.Config.load()
         self.selected = set(self.cfg.offline_folders())
-        self.where.setText(f"Офлайн-копии: {self.cfg.mirror_path}")
+        self.where.setText(f"Offline copies: {self.cfg.mirror_path}")
         self.tree.clear()
         root = self.tree.invisibleRootItem()
         self._load(root, "")
 
     def _load(self, item, rel: str):
-        placeholder = QTreeWidgetItem(["Загрузка…"])
+        placeholder = QTreeWidgetItem(["Loading…"])
         placeholder.setFlags(Qt.ItemFlag.NoItemFlags)
         if item is self.tree.invisibleRootItem():
             self.tree.addTopLevelItem(placeholder)
@@ -334,7 +337,7 @@ class OfflineTab(QWidget):
             return  # tree was rebuilt meanwhile
         item.takeChildren()
         if error:
-            err = QTreeWidgetItem([f"Не удалось открыть: {error}"])
+            err = QTreeWidgetItem([f"Cannot open: {error}"])
             err.setFlags(Qt.ItemFlag.NoItemFlags)
             item.addChild(err)
             return
@@ -390,9 +393,9 @@ class OfflineTab(QWidget):
             msgs = []
             if removed:
                 answer = QMessageBox.question(
-                    self, "Убрать из офлайна",
-                    "Эти папки останутся в облаке:\n  " + "\n  ".join(removed) +
-                    "\n\nПереместить их локальные копии в корзину?",
+                    self, "Stop keeping offline",
+                    "These folders stay in the cloud:\n  " + "\n  ".join(removed) +
+                    "\n\nMove their local copies to the Trash?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                     | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.No)
                 if answer == QMessageBox.StandardButton.Cancel:
@@ -401,9 +404,9 @@ class OfflineTab(QWidget):
                                                answer == QMessageBox.StandardButton.Yes))
             if added:
                 msgs.append(client.set_offline([str(mp / a) for a in added], True))
-            QMessageBox.information(self, "Офлайн-папки", "\n".join(msgs))
+            QMessageBox.information(self, "Offline folders", "\n".join(msgs))
         except dbus.DBusException as e:
-            QMessageBox.warning(self, "Nimbus Drive", f"Сервис не ответил: {e}")
+            QMessageBox.warning(self, "Nimbus Drive", f"The service did not respond: {e}")
         self.reload()
 
 
@@ -414,7 +417,7 @@ class ConnectDialog(QDialog):
 
     def __init__(self, parent, remote: str = ""):
         super().__init__(parent)
-        self.setWindowTitle("Подключить Google Drive")
+        self.setWindowTitle("Connect Google Drive")
         self.resize(560, 480)
         self.update_existing = bool(remote)
         self.name = QLineEdit(remote or "gdrive")
@@ -423,21 +426,29 @@ class ConnectDialog(QDialog):
         self.client_secret = QLineEdit()
         self.client_secret.setEchoMode(QLineEdit.EchoMode.Password)
         guide = QLabel(
-            "Google отключает общий client_id rclone в 2026 году, поэтому нужен свой — это "
-            "бесплатно и занимает 5 минут: создайте проект в Google Cloud Console, включите "
-            "Drive API, создайте OAuth-клиент типа «Desktop app» и добавьте себя в тестовые "
-            f"пользователи. <a href='{CLIENT_ID_GUIDE}'>Пошаговая инструкция</a>.")
+            "To sign in to Google, an app needs a client ID. rclone's shared one is being "
+            "retired by Google during 2026, so create your own — free, about ten minutes, "
+            "done once:<ol>"
+            "<li>In Google Cloud Console create a project and enable the Google Drive API.</li>"
+            "<li>Set up the OAuth consent screen as <i>External</i>, add the "
+            "<code>.../auth/drive</code> scope, then press <b>Publish app</b>. "
+            "Leaving it in <i>Testing</i> makes Google log you out every 7 days.</li>"
+            "<li>Create an OAuth client of type <i>Desktop app</i> and paste its ID and "
+            "secret below.</li></ol>"
+            "Google will warn that the app is unverified — that is expected for your own "
+            "app: choose <i>Advanced → Go to …</i>. "
+            f"<a href='{CLIENT_ID_GUIDE}'>Step-by-step guide</a>.")
         guide.setWordWrap(True)
         guide.setOpenExternalLinks(True)
         form = QFormLayout()
-        form.addRow("Имя подключения:", self.name)
+        form.addRow("Connection name:", self.name)
         form.addRow("Client ID:", self.client_id)
         form.addRow("Client secret:", self.client_secret)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        self.log.setPlaceholderText("После нажатия «Войти» откроется браузер для входа в Google.")
+        self.log.setPlaceholderText("Your browser opens for the Google sign-in when you press Sign in.")
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        self.login = self.buttons.addButton("Войти через браузер",
+        self.login = self.buttons.addButton("Sign in with browser",
                                             QDialogButtonBox.ButtonRole.ActionRole)
         self.login.clicked.connect(self.start)
         self.buttons.rejected.connect(self.reject)
@@ -453,13 +464,13 @@ class ConnectDialog(QDialog):
         name = self.name.text().strip()
         cid, secret = self.client_id.text().strip(), self.client_secret.text().strip()
         if not name or not name.replace("-", "").replace("_", "").isalnum():
-            QMessageBox.warning(self, "Подключение", "Имя: латиница, цифры, - и _.")
+            QMessageBox.warning(self, "Connect", "Use Latin letters, digits, - and _ in the name.")
             return
         if not cid or not secret:
             if QMessageBox.question(
-                    self, "Без своего client_id",
-                    "Без своего client_id подключение перестанет работать, когда Google "
-                    "отключит общий ключ rclone. Продолжить всё равно?") \
+                    self, "No client ID",
+                    "Without your own client ID this connection stops working when Google "
+                    "retires rclone's shared one. Continue anyway?") \
                     != QMessageBox.StandardButton.Yes:
                 return
         params = ["scope=drive"]
@@ -469,11 +480,11 @@ class ConnectDialog(QDialog):
             args = ["config", "update", name, *params, "config_refresh_token=true"]
         else:
             if name in drive_remotes():
-                QMessageBox.warning(self, "Подключение", f"Подключение «{name}» уже есть.")
+                QMessageBox.warning(self, "Connect", f"A connection named \"{name}\" already exists.")
                 return
             args = ["config", "create", name, "drive", *params]
         self.login.setEnabled(False)
-        self.log.setPlainText("Откройте браузер и войдите в аккаунт Google…\n")
+        self.log.setPlainText("Sign in to your Google account in the browser…\n")
         self.proc = QProcess(self)
         self.proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         self.proc.readyRead.connect(self._read)
@@ -489,10 +500,10 @@ class ConnectDialog(QDialog):
     def _done(self, code, _status):
         self.login.setEnabled(True)
         if code == 0:
-            self.log.appendPlainText("\nГотово: аккаунт подключён.")
+            self.log.appendPlainText("\nDone: the account is connected.")
             self.accept()
         else:
-            self.log.appendPlainText(f"\nНе получилось (код {code}). Проверьте client ID/secret.")
+            self.log.appendPlainText(f"\nThat did not work (code {code}). Check the client ID and secret.")
 
 
 class AccountTab(QWidget):
@@ -504,14 +515,14 @@ class AccountTab(QWidget):
         self.warning = QLabel()
         self.warning.setWordWrap(True)
         self.warning.setStyleSheet("color: #c0392b;")
-        new_btn = QPushButton(icon("list-add-user"), "Подключить аккаунт…")
+        new_btn = QPushButton(icon("list-add-user"), "Connect another account…")
         new_btn.clicked.connect(lambda: self.connect_account(""))
-        self.reauth_btn = QPushButton(icon("view-refresh"), "Переподключить со своим client_id…")
+        self.reauth_btn = QPushButton(icon("view-refresh"), "Reconnect with your own client ID…")
         self.reauth_btn.clicked.connect(lambda: self.connect_account(self.remote.currentText()))
-        use_btn = QPushButton(icon("dialog-ok-apply"), "Использовать этот аккаунт")
+        use_btn = QPushButton(icon("dialog-ok-apply"), "Use this account")
         use_btn.clicked.connect(self.use_remote)
         form = QFormLayout()
-        form.addRow("Подключение rclone:", self.remote)
+        form.addRow("rclone connection:", self.remote)
         lay = QVBoxLayout(self)
         lay.addLayout(form)
         lay.addWidget(self.warning)
@@ -534,8 +545,10 @@ class AccountTab(QWidget):
     def check_remote(self, name: str):
         shared = bool(name) and uses_shared_client_id(name)
         self.warning.setText(
-            "⚠ Это подключение использует общий client_id rclone. Google отключает его в 2026 "
-            "году — после этого Drive перестанет открываться. Переподключите со своим client_id."
+            "⚠ This connection signs in with rclone's shared client ID, which Google is "
+            "retiring during 2026. Once it is retired, Google Drive stops connecting. "
+            "Reconnect with your own client ID (about ten minutes, done once) and it keeps "
+            "working."
             if shared else "")
         self.reauth_btn.setVisible(bool(name))
 
@@ -566,35 +579,35 @@ class SettingsTab(QWidget):
         self.mirror = QLineEdit(cfg["mirror_root"])
         self.cache = QSpinBox()
         self.cache.setRange(1, 4096)
-        self.cache.setSuffix(" ГБ")
+        self.cache.setSuffix(" GB")
         self.cache.setValue(_parse_gb(cfg["cache_max_size"]))
         self.days = QSpinBox()
         self.days.setRange(1, 365)
-        self.days.setSuffix(" дн.")
+        self.days.setSuffix(" days")
         self.days.setValue(max(1, _parse_hours(cfg["cache_max_age"]) // 24))
         self.interval = QSpinBox()
         self.interval.setRange(1, 1440)
-        self.interval.setSuffix(" мин")
+        self.interval.setSuffix(" min")
         self.interval.setValue(int(cfg["sync_interval_minutes"]))
-        self.notify = QCheckBox("Показывать уведомления о конфликтах и ошибках")
+        self.notify = QCheckBox("Notify me about conflicts and errors")
         self.notify.setChecked(bool(cfg["notifications"]))
-        self.autostart = QCheckBox("Показывать значок в трее при входе в систему")
+        self.autostart = QCheckBox("Show the tray icon when I log in")
         self.autostart.setChecked(AUTOSTART_FILE.exists())
 
         form = QFormLayout()
-        form.addRow("Папка Google Drive:", self._with_browse(self.mount))
-        form.addRow("Офлайн-копии:", self._with_browse(self.mirror))
-        form.addRow("Место под скачанные файлы:", self.cache)
-        form.addRow("Хранить скачанные файлы:", self.days)
-        form.addRow("Синхронизировать офлайн-папки каждые:", self.interval)
-        save = QPushButton(icon("document-save"), "Сохранить")
+        form.addRow("Google Drive folder:", self._with_browse(self.mount))
+        form.addRow("Offline copies:", self._with_browse(self.mirror))
+        form.addRow("Space for downloaded files:", self.cache)
+        form.addRow("Keep downloaded files for:", self.days)
+        form.addRow("Sync offline folders every:", self.interval)
+        save = QPushButton(icon("document-save"), "Save")
         save.clicked.connect(self.save)
         lay = QVBoxLayout(self)
         lay.addLayout(form)
         lay.addWidget(self.notify)
         lay.addWidget(self.autostart)
         lay.addStretch()
-        about = QLabel(f"Nimbus Drive {__version__} на базе rclone · "
+        about = QLabel(f"Nimbus Drive {__version__}, built on rclone · "
                        f"<a href='{HOMEPAGE}'>GitHub</a>")
         about.setOpenExternalLinks(True)
         lay.addWidget(about)
@@ -611,7 +624,7 @@ class SettingsTab(QWidget):
         return w
 
     def _browse(self, edit: QLineEdit):
-        d = QFileDialog.getExistingDirectory(self, "Выберите папку",
+        d = QFileDialog.getExistingDirectory(self, "Choose a folder",
                                              os.path.expanduser(edit.text()))
         if d:
             home = str(Path.home())
@@ -625,14 +638,14 @@ class SettingsTab(QWidget):
             return
         a, b = Path(new_mount).absolute(), Path(new_mirror).absolute()
         if a == b or a in b.parents or b in a.parents:
-            QMessageBox.warning(self, "Настройки", "Папка Google Drive и офлайн-копии не "
-                                                   "должны быть вложены друг в друга.")
+            QMessageBox.warning(self, "Settings", "The Google Drive folder and the offline "
+                                                   "copies must not be inside each other.")
             return
         if cfg.mirror_path != b and cfg.offline_folders() and cfg.mirror_path.exists():
             QMessageBox.information(
-                self, "Настройки",
-                f"Офлайн-папки будут заново скачаны в {b}. Старая копия останется в "
-                f"{cfg.mirror_path} — удалите её сами, когда убедитесь, что всё на месте.")
+                self, "Settings",
+                f"Offline folders will be downloaded again to {b}. The old copy stays in "
+                f"{cfg.mirror_path} — delete it yourself once everything is in place.")
         cfg.update({
             "mount_point": self.mount.text().strip(),
             "mirror_root": self.mirror.text().strip(),
@@ -693,10 +706,10 @@ class MainWindow(QWidget):
         self.offline = OfflineTab(summary)
         self.account = AccountTab(summary, self.saved)
         self.settings = SettingsTab(self.saved)
-        self.tabs.addTab(self.activity, icon("nimbusdrive-syncing"), "Активность")
-        self.tabs.addTab(self.offline, icon("nimbusdrive-offline"), "Офлайн-папки")
-        self.tabs.addTab(self.account, icon("im-user"), "Аккаунт")
-        self.tabs.addTab(self.settings, icon("configure"), "Настройки")
+        self.tabs.addTab(self.activity, icon("nimbusdrive-syncing"), "Activity")
+        self.tabs.addTab(self.offline, icon("nimbusdrive-offline"), "Offline folders")
+        self.tabs.addTab(self.account, icon("im-user"), "Account")
+        self.tabs.addTab(self.settings, icon("configure"), "Settings")
         lay = QVBoxLayout(self)
         lay.addWidget(self.tabs)
 
@@ -728,7 +741,7 @@ class MainWindow(QWidget):
 
 class Tray(QSystemTrayIcon):
     def __init__(self, summary: Summary, window: MainWindow):
-        super().__init__(badged("io.github.nimbusdrive", "nimbusdrive-pending"))
+        super().__init__(icon(TRAY_ICONS["nimbusdrive-syncing"]))
         self.summary, self.window = summary, window
         self.menu = QMenu()
         self.setContextMenu(self.menu)
@@ -745,7 +758,7 @@ class Tray(QSystemTrayIcon):
 
     def update_view(self, d: dict):
         text, badge = overall(d)
-        self.setIcon(badged("io.github.nimbusdrive", badge))
+        self.setIcon(icon(TRAY_ICONS.get(badge, TRAY_ICONS[None])))
         lines = [text]
         for t in (d.get("downloads") or [])[:5]:
             lines.append(f"↓ {Path(t['name']).name} — {t['pct']}%")
@@ -762,31 +775,31 @@ class Tray(QSystemTrayIcon):
             a.setEnabled(False)
         m.addSeparator()
         if not d:
-            m.addAction(icon("media-playback-start"), "Запустить сервис", lambda: subprocess.run(
+            m.addAction(icon("media-playback-start"), "Start the service", lambda: subprocess.run(
                 ["systemctl", "--user", "start", "nimbus-drive.service"]))
         else:
             mount = d["mount"]["path"]
-            m.addAction(icon("folder-cloud"), "Открыть Google Drive",
+            m.addAction(icon("folder-cloud"), "Open Google Drive",
                         lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(mount)))
             if d["mirror"]["folders"]:
                 root = d["mirror_root"]
-                m.addAction(icon("folder"), "Открыть офлайн-папки",
+                m.addAction(icon("folder"), "Open offline folders",
                             lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(root)))
-                m.addAction(icon("view-refresh"), "Синхронизировать сейчас",
+                m.addAction(icon("view-refresh"), "Sync now",
                             self.summary.client.sync_now)
                 paused = d["mirror"]["paused"]
                 m.addAction(icon("media-playback-start" if paused else "media-playback-pause"),
-                            "Возобновить синхронизацию" if paused else "Приостановить синхронизацию",
+                            "Resume sync" if paused else "Pause sync",
                             lambda: self.summary.client.set_paused(not paused))
             for f in d["mirror"]["folders"]:
                 if f["needs_force"]:
-                    m.addAction(icon("dialog-warning"), f"Подтвердить удаления в «{f['folder']}»…",
+                    m.addAction(icon("dialog-warning"), f"Confirm deletions in \"{f['folder']}\"…",
                                 lambda folder=f["folder"]: self.window.activity._force(folder))
         m.addSeparator()
-        m.addAction(icon("nimbusdrive-offline"), "Офлайн-папки…", lambda: self.window.show_tab(1))
-        m.addAction(icon("configure"), "Настройки…", lambda: self.window.show_tab(3))
+        m.addAction(icon("nimbusdrive-offline"), "Offline folders…", lambda: self.window.show_tab(1))
+        m.addAction(icon("configure"), "Settings…", lambda: self.window.show_tab(3))
         m.addSeparator()
-        m.addAction(icon("application-exit"), "Скрыть значок", QApplication.quit)
+        m.addAction(icon("application-exit"), "Hide icon", QApplication.quit)
 
 
 def main(settings_only: bool = False) -> int:
@@ -794,7 +807,7 @@ def main(settings_only: bool = False) -> int:
     app = QApplication(sys.argv[:1])
     app.setApplicationName("nimbus-drive")
     app.setApplicationDisplayName("Nimbus Drive")
-    app.setDesktopFileName("nimbus-drive")
+    app.setDesktopFileName("io.github.nimbusdrive")
     app.setWindowIcon(icon("io.github.nimbusdrive"))
     summary = Summary()
     window = MainWindow(summary)

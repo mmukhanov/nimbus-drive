@@ -126,8 +126,8 @@ class MirrorManager(QObject):
         # past the 255-byte file name limit it cannot run at all.
         session = (remote.replace(":", "_", 1) + ".." + str(local).lstrip("/")).replace("/", "_")
         if len(session.encode()) > 225:
-            st["error"] = ("Слишком длинный путь для синхронизации. Выберите папку повыше "
-                           "или укажите более короткую папку для офлайн-копий.")
+            st["error"] = ("The path is too long to sync. Choose a folder higher up "
+                           "or a shorter location for offline copies.")
             self._save_state()
             self._emit_folder(folder)
             self.summaryChanged.emit()
@@ -184,7 +184,7 @@ class MirrorManager(QObject):
                 st["initialized"] = False
                 self.queue.insert(0, (folder, False))
             elif self.cfg["notifications"]:
-                self.notify.emit(f"Не удалось синхронизировать «{folder}»", st["error"])
+                self.notify.emit(f"Could not sync \"{folder}\"", st["error"])
         self._save_state()
         self._emit_folder(folder)
         self.summaryChanged.emit()
@@ -202,9 +202,9 @@ class MirrorManager(QObject):
                 except OSError:
                     pass
         if found:
-            names = ", ".join(found[:3]) + (f" и ещё {len(found) - 3}" if len(found) > 3 else "")
-            self.notify.emit("Конфликт версий",
-                             f"Файл изменён и здесь, и в облаке. Сохранены обе версии: {names}")
+            names = ", ".join(found[:3]) + (f" and {len(found) - 3} more" if len(found) > 3 else "")
+            self.notify.emit("Conflict",
+                             f"Changed both here and in the cloud. Both versions were kept: {names}")
 
     def _emit_folder(self, folder: str) -> None:
         local = self.local_path(folder)
@@ -232,13 +232,13 @@ class MirrorManager(QObject):
         self.state.pop(folder, None)
         self._save_state()
         shutil.rmtree(workdir_for(folder), ignore_errors=True)
-        msg = f"«{folder}» больше не хранится офлайн."
+        msg = f"\"{folder}\" is no longer kept offline."
         local = self.local_path(folder)
         if trash_local and local.exists():
             if QFile.moveToTrash(str(local)):
-                msg += " Локальная копия перемещена в корзину."
+                msg += " The local copy was moved to the Trash."
             else:
-                msg += f" Не удалось переместить в корзину: {local}"
+                msg += f" Could not move it to the Trash: {local}"
         self._emit_folder(folder)
         self.summaryChanged.emit()
         return msg
@@ -288,14 +288,14 @@ def explain_bisync_error(output: str) -> tuple[str, bool]:
     """Turn rclone bisync output into a short message for people. Returns (message, needs_force)."""
     low = output.lower()
     if "too many deletes" in low:
-        return ("Слишком много удалений за раз — синхронизация остановлена для защиты данных. "
-                "Проверьте папку и подтвердите в меню трея.", True)
+        return ("Too many files deleted at once — sync stopped to protect your data. "
+                "Check the folder and confirm in the tray menu.", True)
     if "directory not found" in low or ("not found" in low and "path1" in low):
-        return ("Папка не найдена в облаке (удалена или переименована).", False)
+        return ("Folder not found in the cloud (deleted or renamed).", False)
     if "couldn't connect" in low or "no such host" in low or "network is unreachable" in low:
-        return ("Нет связи с Google Drive. Повторю позже.", False)
+        return ("Cannot reach Google Drive. Will retry later.", False)
     if "invalid_grant" in low or ("token" in low and "expired" in low):
-        return ("Доступ к аккаунту истёк — переподключите аккаунт в настройках.", False)
+        return ("Account access expired — reconnect the account in Settings.", False)
     lines = [l for l in output.splitlines() if "ERROR" in l]
-    return ((lines[-1].split("ERROR", 1)[-1].strip(" :") if lines else "неизвестная ошибка")[:300],
+    return ((lines[-1].split("ERROR", 1)[-1].strip(" :") if lines else "unknown error")[:300],
             False)

@@ -64,24 +64,24 @@ public:
         menuAction->setMenu(menu);
 
         if (anyInMount) {
-            add(menu, QStringLiteral("nimbusdrive-cached"), QStringLiteral("Скачать на компьютер"), [paths] {
+            add(menu, QStringLiteral("nimbusdrive-cached"), QStringLiteral("Download to this computer"), [paths] {
                 callAndReport(QStringLiteral("Download"), {paths}, false);
             });
-            add(menu, QStringLiteral("nimbusdrive-cloud"), QStringLiteral("Освободить место (только в облаке)"), [paths] {
+            add(menu, QStringLiteral("nimbusdrive-cloud"), QStringLiteral("Free up space (online only)"), [paths] {
                 callAndReport(QStringLiteral("FreeSpace"), {paths}, true);
             });
         }
         if (allDirs) {
-            QAction *offline = add(menu, QStringLiteral("nimbusdrive-offline"), QStringLiteral("Всегда хранить офлайн"),
+            QAction *offline = add(menu, QStringLiteral("nimbusdrive-offline"), QStringLiteral("Always keep offline"),
                                    [paths, allOffline, parentWidget = QPointer<QWidget>(parentWidget)] {
                                        if (!allOffline) {
                                            callAndReport(QStringLiteral("SetOffline"), {paths, true, false}, true);
                                            return;
                                        }
                                        const auto answer = QMessageBox::question(
-                                           parentWidget, QStringLiteral("Не хранить офлайн"),
-                                           QStringLiteral("Папка останется в облаке. "
-                                                          "Переместить локальную офлайн-копию в корзину?"),
+                                           parentWidget, QStringLiteral("Stop keeping offline"),
+                                           QStringLiteral("The folder stays in the cloud. "
+                                                          "Move its local offline copy to the Trash?"),
                                            QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, QMessageBox::No);
                                        if (answer == QMessageBox::Cancel) {
                                            return;
@@ -93,7 +93,7 @@ public:
             offline->setChecked(allOffline);
         }
         if (allOffline) {
-            add(menu, QStringLiteral("nimbusdrive-syncing"), QStringLiteral("Синхронизировать сейчас"), [] {
+            add(menu, QStringLiteral("nimbusdrive-syncing"), QStringLiteral("Sync now"), [] {
                 QDBusConnection::sessionBus().call(Nimbus::call(QStringLiteral("SyncNow")), QDBus::NoBlock);
             });
         }

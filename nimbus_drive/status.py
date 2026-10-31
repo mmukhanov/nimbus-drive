@@ -16,15 +16,15 @@ CONFLICT = "conflict"        # conflict copy created by sync
 ERROR = "error"
 
 LABELS = {
-    CLOUD: "Только в облаке",
-    DOWNLOADING: "Скачивается…",
-    CACHED: "Скачан на компьютер",
-    UPLOADING: "Загружается в облако…",
-    OFFLINE: "Всегда доступен офлайн",
-    PENDING: "Ждёт синхронизации",
-    SYNCING: "Синхронизируется…",
-    CONFLICT: "Конфликт версий",
-    ERROR: "Ошибка синхронизации",
+    CLOUD: "Online only",
+    DOWNLOADING: "Downloading…",
+    CACHED: "Available on this computer",
+    UPLOADING: "Uploading…",
+    OFFLINE: "Always available offline",
+    PENDING: "Waiting to sync",
+    SYNCING: "Syncing…",
+    CONFLICT: "Conflict",
+    ERROR: "Sync error",
 }
 
 
