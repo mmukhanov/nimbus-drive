@@ -1,0 +1,8 @@
+{
+    "KPlugin": {
+        "Name": "Nimbus Drive",
+        "Description": "Download, free up space and keep Google Drive folders offline",
+        "Icon": "io.github.nimbusdrive"
+    },
+    "MimeType": ["application/octet-stream", "inode/directory"]
+}

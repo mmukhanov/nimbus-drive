@@ -1,0 +1,7 @@
+{
+    "KPlugin": {
+        "Name": "Nimbus Drive",
+        "Description": "Google Drive file states: in the cloud, downloading, downloaded, offline",
+        "Icon": "io.github.nimbusdrive"
+    }
+}

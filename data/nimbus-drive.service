@@ -1,0 +1,16 @@
+[Unit]
+Description=Nimbus Drive (Google Drive via rclone)
+Wants=network-online.target
+After=network-online.target graphical-session-pre.target
+
+[Service]
+Type=dbus
+BusName=io.github.nimbusdrive
+ExecStart=@BINDIR@/nimbus-drive daemon
+# rclone flushes pending uploads to its cache and unmounts on SIGTERM.
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
