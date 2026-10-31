@@ -2,6 +2,9 @@
 
 An unofficial Google Drive™ client for Linux that works like Google Drive for desktop on Windows, built on [rclone](https://rclone.org). Not affiliated with or endorsed by Google.
 
+> [!WARNING]
+> **Not for everyday users yet.** Google does not let a free open-source app like this sign in on its own: **every user has to create their own Google Cloud OAuth app first.** That is a technical setup in the Google Cloud Console that takes **1–2 hours** the first time, not minutes. And to keep Google from logging you out **every 7 days**, you also need **your own domain** with a home page and a privacy policy, because Google accepts nothing less for publishing the app. Read [the guide](docs/google-client-id.md) before installing. If that is too much, a paid client such as [Insync](https://www.insynchq.com/) does all of this for you.
+
 > **Status: beta (0.1).** It is used daily on one Kubuntu-style setup (Ubuntu 26.04, KDE Plasma 6, Wayland) and has no automated tests yet. Keep a backup of anything important and read [Safety](#safety) before using offline folders. Bug reports are very welcome.
 
 - **Files on demand.** Your whole Drive appears in a folder (`~/GoogleDrive`). Nothing takes disk space until you open it; opening a file downloads it.
@@ -43,7 +46,7 @@ The window opens on the *Account* tab the first time. Restart Dolphin to see the
 
 ## Your own Google client ID (needed in 2026)
 
-Every app that signs in to Google needs an OAuth client ID. rclone's shared one is being retired by Google during 2026, and connections still using it stop working then — so each user creates their own, once. It is free, but **plan for 30–60 minutes the first time**: Google's console is fiddly.
+Every app that signs in to Google needs an OAuth client ID. rclone's shared one is being retired by Google during 2026, and connections still using it stop working then — so each user creates their own, once. It is free, but **plan for 1–2 hours the first time**: Google's console is fiddly, and publishing needs your own domain.
 
 You choose between two modes:
 

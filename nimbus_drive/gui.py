@@ -444,8 +444,8 @@ class ConnectDialog(QDialog):
         self.client_secret.setEchoMode(QLineEdit.EchoMode.Password)
         guide = QLabel(
             "To sign in to Google, an app needs a client ID. rclone's shared one is being "
-            "retired by Google during 2026, so create your own once. It is free but takes "
-            "30–60 minutes the first time — follow the "
+            "retired by Google during 2026, so create your own once. It is a technical setup "
+            "that takes 1–2 hours the first time — follow the "
             f"<a href='{CLIENT_ID_GUIDE}'><b>step-by-step guide</b></a>."
             "<p>In short: in Google Cloud Console enable the Google Drive API, set up the "
             "OAuth consent screen (<i>External</i>), add the <code>.../auth/drive</code> "
@@ -565,8 +565,8 @@ class AccountTab(QWidget):
         self.warning.setText(
             "⚠ This connection signs in with rclone's shared client ID, which Google is "
             "retiring during 2026. Once it is retired, Google Drive stops connecting. "
-            "Reconnect with your own client ID (free, done once; the guide takes 30–60 "
-            "minutes the first time) and it keeps working."
+            "Reconnect with your own client ID (done once; the guide takes 1–2 hours the "
+            "first time) and it keeps working."
             if shared else "")
         self.reauth_btn.setVisible(bool(name))
 

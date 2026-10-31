@@ -4,8 +4,13 @@ Nimbus Drive signs in to Google through rclone, and every app that signs in to G
 OAuth **client ID**. rclone's shared one is being retired by Google during 2026; connections
 that still use it stop working at that point. So you create your own, once.
 
-**Plan for 30–60 minutes the first time.** Google's console is slow to click through, it renames
-its pages often, and one step (publishing) has a catch described below. It is free.
+> [!WARNING]
+> **This is not a quick step and not made for everyday users.** Plan for **1–2 hours** the first
+> time. Google's console is slow to click through and renames its pages often. To stop Google
+> logging you out every 7 days you must also **publish** the app, and Google only allows that
+> with a home page and a privacy policy on **a domain you own** — so you need your own domain
+> (or a GitHub Pages site) and to put two web pages on it. It is free apart from a domain, if you
+> buy one.
 
 It also pays off right away: with the shared ID, Google throttles requests from everyone
 sharing it. With your own, listing a large Drive folder dropped from about 50 seconds to about

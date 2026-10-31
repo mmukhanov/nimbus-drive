@@ -21,7 +21,7 @@ Nimbus Drive puts your whole Google Drive™ in a folder and shows on every file
 - Offline folders with two-way sync (rclone bisync); conflicts keep both versions
 - Tray icon that follows the light/dark theme, notifications for conflicts and errors
 
-Beta. Needs rclone 1.66+ and your own Google OAuth client ID (free; the README explains how). Not affiliated with Google. Google Drive is a trademark of Google LLC.
+Beta, for technical users. Needs rclone 1.66+ and your own Google Cloud OAuth app: a 1–2 hour setup, and your own domain if you want to avoid signing in again every 7 days. Read the guide on GitHub before installing. Not affiliated with Google. Google Drive is a trademark of Google LLC.
 
 Source and install: https://github.com/mmukhanov/nimbus-drive
 
