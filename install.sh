@@ -35,7 +35,7 @@ EOF
 chmod +x "$BINDIR/nimbus-drive"
 
 say "Icons and launcher"
-for sub in apps emblems status; do
+for sub in apps emblems; do
   mkdir -p "$DATADIR/icons/hicolor/scalable/$sub"
   cp "$SRC"/data/icons/hicolor/scalable/$sub/*.svg "$DATADIR/icons/hicolor/scalable/$sub/"
 done

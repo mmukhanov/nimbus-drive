@@ -11,8 +11,8 @@ from pathlib import Path
 import dbus
 import dbus.service
 from dbus.mainloop.pyqt6 import DBusQtMainLoop
-from PyQt6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices, QIcon
+from PyQt6.QtCore import QEvent, QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox,
@@ -34,22 +34,39 @@ def icon(name: str) -> QIcon:
     if not themed.isNull():
         return themed
     local = Path(__file__).resolve().parent.parent / "data/icons/hicolor/scalable"
-    for sub in ("apps", "emblems", "status"):
+    for sub in ("apps", "emblems"):
         f = local / sub / f"{name}.svg"
         if f.exists():
             return QIcon(str(f))
     return QIcon()
 
 
-# Overall state (badge from overall()) -> monochrome tray icon. Symbolic icons are
-# recoloured by Plasma to match the panel, like the other tray icons.
-TRAY_ICONS = {
-    None: "nimbusdrive-tray-ok-symbolic",
-    "nimbusdrive-syncing": "nimbusdrive-tray-sync-symbolic",
-    "nimbusdrive-pending": "nimbusdrive-tray-paused-symbolic",
-    "nimbusdrive-conflict": "nimbusdrive-tray-error-symbolic",
-    "nimbusdrive-error": "nimbusdrive-tray-error-symbolic",
+# Overall state (badge from overall()) -> tray icon state.
+TRAY_STATES = {
+    None: "ok",
+    "nimbusdrive-syncing": "sync",
+    "nimbusdrive-pending": "paused",
+    "nimbusdrive-conflict": "error",
+    "nimbusdrive-error": "error",
 }
+TRAY_ICON_DIR = Path(__file__).resolve().parent / "icons"
+
+
+def dark_theme() -> bool:
+    scheme = QGuiApplication.styleHints().colorScheme()
+    if scheme != Qt.ColorScheme.Unknown:
+        return scheme == Qt.ColorScheme.Dark
+    return QGuiApplication.palette().window().color().lightness() < 128
+
+
+def tray_icon(state: str) -> QIcon:
+    """Black icon for light panels, white for dark ones. Built from pixmaps so the tray
+    host gets image data, not an icon name it would have to find in its own theme."""
+    f = TRAY_ICON_DIR / f"tray-{state}-{'dark' if dark_theme() else 'light'}.svg"
+    src, out = QIcon(str(f)), QIcon()
+    for size in (16, 22, 24, 32, 48, 64):
+        out.addPixmap(src.pixmap(size, size))
+    return out
 
 
 def human_size(n: float) -> str:
@@ -741,13 +758,25 @@ class MainWindow(QWidget):
 
 class Tray(QSystemTrayIcon):
     def __init__(self, summary: Summary, window: MainWindow):
-        super().__init__(icon(TRAY_ICONS["nimbusdrive-syncing"]))
+        super().__init__(tray_icon("sync"))
         self.summary, self.window = summary, window
+        self.state = "sync"
+        # Follow KDE switching between light and dark themes.
+        QGuiApplication.styleHints().colorSchemeChanged.connect(self._retheme)
+        QApplication.instance().installEventFilter(self)
         self.menu = QMenu()
         self.setContextMenu(self.menu)
         self.activated.connect(self._activated)
         summary.changed.connect(self.update_view)
         self.update_view(summary.data)
+
+    def eventFilter(self, obj, event):
+        if obj is QApplication.instance() and event.type() == QEvent.Type.ApplicationPaletteChange:
+            self._retheme()
+        return False
+
+    def _retheme(self, *_):
+        self.setIcon(tray_icon(self.state))
 
     def _activated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
@@ -758,7 +787,10 @@ class Tray(QSystemTrayIcon):
 
     def update_view(self, d: dict):
         text, badge = overall(d)
-        self.setIcon(icon(TRAY_ICONS.get(badge, TRAY_ICONS[None])))
+        state = TRAY_STATES.get(badge, "ok")
+        if state != self.state:
+            self.state = state
+            self.setIcon(tray_icon(state))
         lines = [text]
         for t in (d.get("downloads") or [])[:5]:
             lines.append(f"↓ {Path(t['name']).name} — {t['pct']}%")
