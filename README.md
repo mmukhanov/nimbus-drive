@@ -1,6 +1,8 @@
 # Nimbus Drive
 
-Google Drive for Linux that behaves like Google Drive for desktop on Windows — built on [rclone](https://rclone.org).
+An unofficial Google Drive™ client for Linux that works like Google Drive for desktop on Windows, built on [rclone](https://rclone.org). Not affiliated with or endorsed by Google.
+
+> **Status: beta (0.1).** It is used daily on one Kubuntu-style setup (Ubuntu 26.04, KDE Plasma 6, Wayland) and has no automated tests yet. Keep a backup of anything important and read [Safety](#safety) before using offline folders. Bug reports are very welcome.
 
 - **Files on demand.** Your whole Drive appears in a folder (`~/GoogleDrive`). Nothing takes disk space until you open it; opening a file downloads it.
 - **You can see what is local.** Dolphin shows an emblem on every file:
@@ -63,7 +65,26 @@ nimbus-drive tray (PyQt6): tray icon, settings, folder picker
 
 File states come from rclone's VFS cache metadata and its live transfer list, never from listing Drive, so emblems stay instant even on large drives. "Free up space" removes a file from the cache only when it is closed and fully uploaded.
 
-Safety: the rc socket lives in a `0700` runtime directory; tokens stay in rclone's own config; the first sync of an offline folder only merges (never deletes); bisync stops if more than half of the files would be deleted and asks you to confirm; removing an offline folder moves the local copy to the Trash, never deletes it.
+## Safety
+
+What protects your data:
+
+- Your Google sign-in token stays in rclone's own config; Nimbus Drive never reads or shows it.
+- rclone is controlled through a unix socket in a `0700` runtime directory, so only your user can reach it.
+- The first sync of an offline folder only merges both sides and never deletes.
+- If more than half of the files in an offline folder would be deleted at once, sync stops and asks you to confirm.
+- A file changed on both sides keeps both versions (`report.conflict1.docx`).
+- Removing a folder from offline moves the local copy to the Trash.
+- *Free up space* skips files that are open, being transferred or not uploaded yet.
+
+Known risks — please read:
+
+- **Offline folders use `rclone bisync`, which rclone calls an advanced command to "use with care".** It is the part where edits could be lost. Back up important folders before making them offline.
+- **Free up space removes files from rclone's cache while rclone runs.** rclone does not document this; it was tested with rclone 1.75, where the next open downloads the file again. A future rclone version could behave differently.
+- Editing the same file at the same time in `~/GoogleDrive` and in its offline copy is only detected at the next sync (every 5 minutes by default).
+- Native Google Docs/Sheets/Slides are not copied into offline folders; they have no offline file form.
+
+Report security problems privately — see [SECURITY.md](SECURITY.md).
 
 ## Command line
 
@@ -78,10 +99,13 @@ nimbus-drive sync                 # sync offline folders now
 
 ## Limits
 
+- Tested only on Ubuntu 26.04 with KDE Plasma 6 on Wayland. Other distributions and Plasma 5 are untested.
+- Emblems and the context menu are for Dolphin (KDE). GNOME, Cinnamon and XFCE get the folder, tray icon and CLI; GNOME needs the AppIndicator extension for the tray.
 - One Google account per installation (pick another rclone remote in *Account* to switch).
-- Emblems and the context menu are for Dolphin; other file managers get the folder, tray and CLI.
+- Every user needs their own Google client ID (see above). That is a Google requirement for apps that are not verified by Google.
 - Very deep offline folders can hit rclone bisync's file name limit; the app tells you when that happens.
+- English interface only.
 
 ## License
 
-MIT
+MIT. Google Drive is a trademark of Google LLC. Use of this trademark is subject to Google Permissions.

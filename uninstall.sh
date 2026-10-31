@@ -21,7 +21,9 @@ rm -rf "$PREFIX/share/nimbus-drive"
 PLUGINDIR=$(qtpaths6 --plugin-dir 2>/dev/null || qmake6 -query QT_INSTALL_PLUGINS 2>/dev/null || true)
 if [ -n "$PLUGINDIR" ] && { [ -e "$PLUGINDIR/kf6/overlayicon/nimbusoverlay.so" ] || [ -e "$PLUGINDIR/kf6/kfileitemaction/nimbusactions.so" ]; }; then
   echo "Removing the Dolphin plugin (needs your admin password)"
-  $SUDO rm -f "$PLUGINDIR/kf6/overlayicon/nimbusoverlay.so" "$PLUGINDIR/kf6/kfileitemaction/nimbusactions.so"
+  $SUDO rm -f "$PLUGINDIR/kf6/overlayicon/nimbusoverlay.so" "$PLUGINDIR/kf6/kfileitemaction/nimbusactions.so" \
+    || echo "Could not remove the Dolphin plugin; remove these files as root: $PLUGINDIR/kf6/overlayicon/nimbusoverlay.so $PLUGINDIR/kf6/kfileitemaction/nimbusactions.so"
 fi
+command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -qtf "$DATADIR/icons/hicolor" 2>/dev/null || true
 
-echo "Nimbus Drive removed. Settings remain in $CONFDIR/nimbus-drive, the cache in ${XDG_CACHE_HOME:-$HOME/.cache}/nimbus-drive."
+echo "Nimbus Drive removed. Settings remain in $CONFDIR/nimbus-drive, state in ${XDG_STATE_HOME:-$HOME/.local/state}/nimbus-drive, the cache in ${XDG_CACHE_HOME:-$HOME/.cache}/nimbus-drive."

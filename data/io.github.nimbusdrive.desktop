@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Nimbus Drive
-GenericName=Google Drive
-Comment=Google Drive for Linux: files on demand, offline folders, two-way sync
+GenericName=Cloud Drive Client
+Comment=Unofficial Google Drive client: files on demand, offline folders, two-way sync
 Exec=@BINDIR@/nimbus-drive tray
 Icon=io.github.nimbusdrive
 Categories=Network;FileTransfer;Qt;
